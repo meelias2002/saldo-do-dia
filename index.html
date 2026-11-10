@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Saldo do dia</title>
+<meta name="theme-color" content="#14532d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root {
+  --papel: #f3f4ee; --tinta: #17211b; --suave: #5d6a61; --linha: #d9dccf; --campo: #fff;
+  --pos: #17603a; --neg: #a3231c;
+  --f-verde: #14532d; --f-atencao: #7a4f00; --f-vermelho: #8f1d18;
+  --fala: ui-serif, Georgia, "Times New Roman", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --papel: #121714; --tinta: #e8ebe3; --suave: #9aa69d; --linha: #2a322c; --campo: #1b221d; --pos: #6fcf97; --neg: #ff8a80; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--papel); color: var(--tinta); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+main { max-width: 520px; margin: 0 auto; }
+h2 { font-size: 1.05rem; margin: 0 0 10px; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid #3b82f6; outline-offset: 2px; }
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.bloco { padding: 22px 18px; border-bottom: 1px solid var(--linha); }
+.nota { color: var(--suave); font-size: .9rem; margin: 8px 0 0; }
+
+/* Situação de hoje: a cor do campo é o estado das contas */
+#hero { color: #f6f7f1; padding: calc(22px + env(safe-area-inset-top)) 18px 14px; background: var(--f-verde); }
+#hero[data-estado=atencao] { background: var(--f-atencao); }
+#hero[data-estado=vermelho] { background: var(--f-vermelho); }
+#hoje { margin: 0; opacity: .85; font-size: .95rem; }
+#saldo { margin: 2px 0 10px; font-size: clamp(2.6rem, 14vw, 4rem); font-weight: 700; line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+#fala { margin: 0 0 18px; font: 1.22rem/1.4 var(--fala); max-width: 32ch; }
+#graf svg { display: block; width: 100%; height: 72px; overflow: visible; }
+#graf polyline { fill: none; stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+#graf .zero { stroke: #fff; stroke-opacity: .55; stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.eixo { display: flex; justify-content: space-between; font-size: .8rem; opacity: .8; margin-top: 4px; }
+
+/* Entra x sai do mês: barras na mesma escala */
+.barra { display: grid; grid-template-columns: 3.2rem 1fr auto; gap: 10px; align-items: center; margin: 6px 0; font-variant-numeric: tabular-nums; }
+.barra i { height: 12px; border-radius: 2px; background: currentColor; min-width: 2px; }
+.barra b { color: var(--tinta); font-weight: 600; }
+
+/* Lançamentos */
+.lin { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 11px 0; background: none; border: 0; border-bottom: 1px solid var(--linha); text-align: left; cursor: pointer; font-variant-numeric: tabular-nums; }
+.lin small, .fat small { color: var(--suave); margin-right: 8px; }
+.lin .tag { display: block; margin: 0; }
+.fat { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; padding: 11px 0; background: none; border: 0; border-bottom: 1px solid var(--linha); text-align: left; font-variant-numeric: tabular-nums; }
+button.fat { cursor: pointer; }
+.fat b { font-weight: 600; white-space: nowrap; }
+.lin b { font-weight: 600; white-space: nowrap; }
+.dia { display: flex; justify-content: space-between; margin: 20px 0 0; padding: 6px 0; font-size: .9rem; font-weight: 600; color: var(--suave); border-bottom: 2px solid var(--tinta); font-variant-numeric: tabular-nums; }
+.dia.eh-hoje span::after { content: " (hoje)"; color: var(--tinta); }
+.passado { opacity: .6; }
+.vazio { color: var(--suave); padding: 12px 0; }
+
+/* Formulários */
+label { display: block; font-size: .9rem; color: var(--suave); margin-bottom: 12px; }
+input:not([type=radio]), select { display: block; width: 100%; margin-top: 4px; padding: 11px 12px; background: var(--campo); border: 1px solid var(--linha); border-radius: 8px; color: var(--tinta); font-size: 1rem; }
+.btn { padding: 12px 16px; border-radius: 8px; border: 1px solid var(--tinta); background: var(--tinta); color: var(--papel); font-weight: 600; cursor: pointer; }
+.btn.sec { background: none; color: var(--tinta); }
+.btn.perigo { background: none; color: var(--neg); border-color: var(--neg); }
+.linha-form { display: flex; gap: 10px; align-items: end; }
+.linha-form label { flex: 1; margin: 0; }
+.acoes { display: flex; gap: 10px; margin-top: 6px; }
+.acoes .btn { flex: 1; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.seg label { position: relative; margin: 0; padding: 11px; text-align: center; border: 1px solid var(--linha); border-radius: 8px; color: var(--tinta); font-size: 1rem; cursor: pointer; }
+.seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.seg label:has(:checked) { background: var(--tinta); color: var(--papel); border-color: var(--tinta); }
+.seg label:has(:focus-visible) { outline: 3px solid #3b82f6; outline-offset: 2px; }
+#resposta { font: 1.1rem/1.4 var(--fala); margin: 14px 0 0; }
+#resposta:empty { display: none; }
+
+dialog { width: 100%; max-width: 520px; margin: auto auto 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); border: 0; border-radius: 16px 16px 0 0; background: var(--papel); color: var(--tinta); }
+dialog::backdrop { background: rgb(0 0 0 / .5); }
+[hidden] { display: none !important; }
+
+nav { position: fixed; left: 0; right: 0; bottom: 0; background: var(--papel); border-top: 1px solid var(--linha); padding-bottom: env(safe-area-inset-bottom); }
+#totalFixos { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.chip { margin: 0 8px 8px 0; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--tinta); background: none; cursor: pointer; }
+
+nav div { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 2px; padding: 8px 10px; align-items: center; }
+nav .btn { padding: 12px 12px; margin-left: 4px; white-space: nowrap; }
+nav button[data-v] { padding: 12px 2px; font-size: .95rem; background: none; border: 0; border-radius: 8px; color: var(--suave); cursor: pointer; }
+nav button[aria-current] { color: var(--tinta); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <section id="inicio">
+    <header id="hero" data-estado="verde">
+      <p id="hoje"></p>
+      <p id="saldo"></p>
+      <p id="fala"></p>
+      <div id="graf"></div>
+      <div class="eixo"><span>hoje</span><span>linha tracejada = zero</span><span>em 6 meses</span></div>
+    </header>
+
+    <div class="bloco">
+      <h2 id="mes"></h2>
+      <div class="barra pos"><span>Entra</span><i id="bEntra"></i><b id="vEntra"></b></div>
+      <div class="barra neg"><span>Sai</span><i id="bSai"></i><b id="vSai"></b></div>
+      <p class="nota" id="difMes"></p>
+    </div>
+
+    <div class="bloco">
+      <h2>Posso comprar?</h2>
+      <form id="comprar">
+        <label id="comprarCartao" hidden>Pagar com<select name="cartao"></select></label>
+        <div class="linha-form">
+          <label>Valor da compra (R$)<input name="valor" type="number" inputmode="decimal" step="0.01" min="0.01" required></label>
+          <button class="btn">Simular</button>
+        </div>
+      </form>
+      <p id="resposta" aria-live="polite"></p>
+      <button class="btn sec" id="lancarCompra" hidden style="margin-top:12px">Lançar essa compra</button>
+    </div>
+
+    <div class="bloco" id="blocoFaturas" hidden>
+      <h2>Próximas faturas</h2>
+      <div id="faturas"></div>
+    </div>
+
+    <div class="bloco">
+      <h2>Próximos lançamentos</h2>
+      <div id="proximos"></div>
+    </div>
+  </section>
+
+  <section id="extrato" class="bloco" hidden>
+    <h2>Extrato e projeção</h2>
+    <button class="btn sec" id="anteriores">Mostrar meses anteriores</button>
+    <div id="lista"></div>
+  </section>
+
+  <section id="fixos" hidden>
+    <div class="bloco">
+      <h2>Custos fixos</h2>
+      <p id="totalFixos"></p>
+      <p class="nota" id="pctFixos" style="margin:0 0 6px"></p>
+      <div id="listaFixos"></div>
+    </div>
+    <div class="bloco">
+      <h2>Adicionar custo fixo</h2>
+      <div id="sugestoes"></div>
+      <p class="nota">Cada um repete todo mês no dia que você escolher. Para mudar o valor (a luz veio mais cara, o aluguel subiu), toque nele na lista acima.</p>
+    </div>
+  </section>
+
+  <section id="mais" hidden>
+    <div class="bloco">
+      <h2>Seu nome</h2>
+      <label>Como o assistente chama você<input id="nome" autocomplete="given-name"></label>
+    </div>
+    <div class="bloco">
+      <h2>Cartões de crédito</h2>
+      <div id="listaCartoes"></div>
+      <form id="fc" style="margin-top:16px">
+        <label><span id="fcTitulo">Novo cartão</span><input name="nome" required maxlength="30" autocomplete="off" placeholder="Nubank, Itaú..."></label>
+        <div class="linha-form" style="margin-bottom:12px">
+          <label>Dia do fechamento<input name="fecha" type="number" inputmode="numeric" min="1" max="31" required></label>
+          <label>Dia do vencimento<input name="vence" type="number" inputmode="numeric" min="1" max="31" required></label>
+        </div>
+        <div class="acoes">
+          <button class="btn perigo" type="button" id="excluirCartao" hidden>Excluir</button>
+          <button class="btn">Salvar cartão</button>
+        </div>
+      </form>
+      <p class="nota">A compra lançada num cartão só sai do saldo no vencimento da fatura. Compras feitas a partir do dia do fechamento entram na fatura seguinte.</p>
+    </div>
+    <div class="bloco">
+      <h2>Acertar saldo</h2>
+      <form id="acertar" class="linha-form">
+        <label>Saldo real agora (R$)<input name="real" type="number" inputmode="decimal" step="0.01" required></label>
+        <button class="btn">Acertar</button>
+      </form>
+      <p class="nota">Use quando o saldo do app não bater com o do banco. A diferença entra como um lançamento "Ajuste de saldo" hoje.</p>
+    </div>
+    <div class="bloco">
+      <h2>Backup</h2>
+      <div class="acoes">
+        <button class="btn sec" id="baixar">Baixar backup</button>
+        <button class="btn sec" id="restaurarBtn">Restaurar backup</button>
+      </div>
+      <input type="file" id="restaurar" accept="application/json,.json" hidden>
+      <p class="nota">Seus dados ficam só neste aparelho. Baixe um backup de vez em quando: se o navegador for limpo ou o aparelho trocado, é ele que traz tudo de volta.</p>
+    </div>
+  </section>
+</main>
+
+<nav><div>
+  <button data-v="inicio" aria-current="page">Início</button>
+  <button data-v="extrato">Extrato</button>
+  <button data-v="fixos">Fixos</button>
+  <button data-v="mais">Mais</button>
+  <button class="btn" id="novoBtn">+ Lançar</button>
+</div></nav>
+
+<dialog id="dlg">
+  <form id="f" method="dialog">
+    <h2 id="dlgTitulo">Novo lançamento</h2>
+    <div class="seg">
+      <label><input type="radio" name="tipo" value="s" checked>Saída</label>
+      <label><input type="radio" name="tipo" value="e">Entrada</label>
+    </div>
+    <label>Nome<input name="nome" list="nomes" required maxlength="40" autocomplete="off" placeholder="Mercado, aluguel, salário..."></label>
+    <datalist id="nomes"></datalist>
+    <label>Valor (R$)<input name="valor" type="number" inputmode="decimal" step="0.01" min="0.01" required></label>
+    <label id="campoData">Data<input name="data" type="date" required></label>
+    <label id="campoCartao" hidden>Pagar com<select name="cartao"></select></label>
+    <div id="camposNovo">
+      <label>Repetir
+        <select name="rep">
+          <option value="n">Não repete</option>
+          <option value="m">Todo mês, neste dia</option>
+          <option value="p">Parcelado</option>
+        </select>
+      </label>
+      <label id="campoN" hidden>Número de parcelas (o valor acima é o de cada parcela)<input name="n" type="number" min="2" max="120" value="2"></label>
+    </div>
+    <label id="campoEscopo" hidden>Aplicar a
+      <select name="escopo">
+        <option value="um">Só este mês (muda só o valor)</option>
+        <option value="diante">Deste mês em diante</option>
+      </select>
+    </label>
+    <div class="acoes">
+      <button class="btn sec" type="button" id="cancelar">Cancelar</button>
+      <button class="btn perigo" type="button" id="excluir" hidden>Excluir</button>
+      <button class="btn" value="ok">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="boas">
+  <form id="fb" method="dialog">
+    <h2>Vamos começar</h2>
+    <label>Seu nome<input name="nome" required maxlength="30" autocomplete="given-name"></label>
+    <label>Quanto você tem hoje, somando suas contas (R$)<input name="saldo" type="number" inputmode="decimal" step="0.01" required></label>
+    <p class="nota" style="margin:0 0 14px">Se estiver no negativo, use o sinal de menos. Depois é só lançar as contas fixas com "Todo mês" e os gastos do dia.</p>
+    <div class="acoes"><button class="btn">Começar</button></div>
+  </form>
+</dialog>
+
+<script src="logic.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
