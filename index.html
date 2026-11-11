@@ -15,8 +15,11 @@
 <main>
   <section id="inicio">
     <header class="topo">
-      <p id="hoje"></p>
-      <p id="ola"></p>
+      <div>
+        <p id="hoje"></p>
+        <p id="ola"></p>
+      </div>
+      <button class="btn sec" id="instalar" hidden>Instalar app</button>
     </header>
 
     <div id="hero" data-estado="verde">
@@ -88,6 +91,10 @@
 
   <section id="mais" hidden>
     <h2 class="titulo">Mais</h2>
+    <div class="bloco" id="blocoInstalar">
+      <h2>Instalar no celular</h2>
+      <p class="nota" style="margin:0"><b>Android (Chrome):</b> toque em "Instalar app" na tela inicial, ou no menu de três pontos e em "Instalar app" / "Adicionar à tela inicial".<br><b>iPhone (Safari):</b> toque em Compartilhar e em "Adicionar à Tela de Início".</p>
+    </div>
     <div class="bloco">
       <h2>Seu nome</h2>
       <label style="margin:0">Como o assistente chama você<input id="nome" autocomplete="given-name"></label>

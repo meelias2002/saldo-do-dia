@@ -329,4 +329,11 @@ render();
 if (!st.nome && !st.itens.length) $('#boas').showModal();
 document.addEventListener('visibilitychange', () => document.hidden || render()); // virou o dia com o app aberto
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+
+// Instalação: o botão só aparece quando o navegador oferece (Android/desktop); no iPhone é pelo menu Compartilhar.
+let convite;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); convite = e; $('#instalar').hidden = false; });
+addEventListener('appinstalled', () => ($('#instalar').hidden = true));
+$('#instalar').onclick = async () => { convite.prompt(); await convite.userChoice; $('#instalar').hidden = true; };
+$('#blocoInstalar').hidden = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 navigator.storage?.persist?.();
