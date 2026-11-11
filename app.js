@@ -13,7 +13,20 @@ let ult;               // última situação calculada
 let verTudo = false;   // extrato: mostrar meses anteriores
 let edit = null;       // { id, k, rep } do lançamento em edição
 let compra = null;     // última simulação de "posso comprar"
-const SUGESTOES = ['Casa', 'Condomínio', 'Luz', 'Água', 'Gás', 'Telefone', 'Internet', 'Escola', 'Plano de saúde', 'Streaming'];
+const IC = { // ícones de traço, 24x24
+  casa: '<path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/>',
+  lista: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
+  fixos: '<path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/>',
+  pontos: '<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/>',
+  mais: '<path d="M12 5v14M5 12h14"/>',
+  saida: '<path d="M7 17L17 7M9 7h8v8"/>',
+  entrada: '<path d="M17 7L7 17M15 17H7V9"/>',
+  cartao: '<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M3 10h18"/>',
+  sacola: '<path d="M6 8h12l1 12H5zM9 8V7a3 3 0 0 1 6 0v1"/>',
+};
+const svg = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
+document.querySelectorAll('[data-ic]').forEach(e => e.insertAdjacentHTML('afterbegin', svg(e.dataset.ic)));
+const SUGESTOES =['Casa', 'Condomínio', 'Luz', 'Água', 'Gás', 'Telefone', 'Internet', 'Escola', 'Plano de saúde', 'Streaming'];
 
 function salvar() {
   localStorage.setItem('contas', JSON.stringify(st));
@@ -26,7 +39,6 @@ function fala(s) {
     t = `você está ${brl(-s.saldo)} no negativo. `;
     t += !s.volta ? 'Pela projeção, não volta ao positivo nos próximos 12 meses.'
       : `Volta ao positivo em ${dm(s.volta)}` + (s.recai ? `, mas fica negativo de novo em ${dm(s.recai)}.` : '.');
-    if (s.piorDia !== s.dias[0].data) t += ` O ponto mais baixo é ${brl(-s.falta)} em ${dm(s.piorDia)}.`;
   } else if (s.negativoEm) {
     t = `você precisa arranjar ${brl(s.falta)} até ${dm(s.negativoEm)}, senão fica negativo.`;
   } else if (s.sai > s.entra) {
@@ -38,17 +50,42 @@ function fala(s) {
 }
 
 function grafico(dias) {
-  const p = dias.slice(0, 183), vs = p.map(d => d.saldo);
-  const lo = Math.min(0, ...vs), amp = (Math.max(0, ...vs) - lo) || 1, W = 300, H = 70;
-  const y = v => (H - ((v - lo) / amp) * H).toFixed(1);
-  const pts = p.map((d, i) => `${((i / (p.length - 1)) * W).toFixed(1)},${y(d.saldo)}`).join(' ');
-  return `<svg viewBox="0 -3 ${W} ${H + 6}" preserveAspectRatio="none" role="img" aria-label="Saldo projetado para os próximos 6 meses">
-    <line class="zero" x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}"/><polyline points="${pts}"/></svg>`;
+  const p = dias.slice(0, 183), vs = p.map(d => d.saldo), n = p.length - 1;
+  const lo = Math.min(0, ...vs), amp = (Math.max(0, ...vs) - lo) || 1, W = 300, H = 100;
+  const y = v => H - ((v - lo) / amp) * H, pct = i => (i / n) * 100;
+  const pts = p.map((d, i) => `${((i / n) * W).toFixed(1)},${y(d.saldo).toFixed(1)}`).join(' ');
+  const y0 = y(0), area = `0,${y0} ${pts} ${W},${y0}`;
+  const im = vs.indexOf(Math.min(...vs)), menor = p[im];
+  const meses = p.map((d, i) => d.data.endsWith('-01') && pct(i) > 8 && pct(i) < 93
+    ? `<span style="left:${pct(i)}%">${dt(d.data, { month: 'short' }).replace('.', '')}</span>` : '').join('');
+  // área recortada na linha do zero: clara acima, escura abaixo
+  return `<div class="graf"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Saldo projetado para os próximos 6 meses">
+      <defs><clipPath id="cAcima"><rect x="0" y="-5" width="${W}" height="${y0 + 5}"/></clipPath>
+      <clipPath id="cAbaixo"><rect x="0" y="${y0}" width="${W}" height="${H - y0 + 5}"/></clipPath></defs>
+      <polygon class="acima" points="${area}" clip-path="url(#cAcima)"/><polygon class="abaixo" points="${area}" clip-path="url(#cAbaixo)"/>
+      <line class="zero" x1="0" x2="${W}" y1="${y0}" y2="${y0}"/><polyline points="${pts}"/></svg>
+    <i class="ponto" style="left:${pct(im)}%;top:${y(menor.saldo)}%"></i>
+    </div>
+  <div class="meses" aria-hidden="true"><span style="left:0">hoje</span>${meses}</div>
+  <p class="legenda">Menor saldo em 6 meses: ${brl(menor.saldo)} em ${dm(menor.data)}.${lo < 0 ? ' A parte escura, abaixo da linha tracejada, é saldo negativo.' : ''}</p>`;
 }
 
-const linha = (o, comData) => `<button class="lin" data-id="${esc(o.id)}" data-k="${o.k}">
-  <span>${comData ? `<small>${dm(o.data)}</small>` : ''}${esc(o.nome)}${o.cartaoId ? `<small class="tag">${esc(o.cartaoNome)}, compra em ${dm(o.compra)}</small>` : ''}</span>
-  <b class="${o.valor < 0 ? 'neg' : 'pos'}">${brl(o.valor)}</b></button>`;
+// Saldo grande com centavos esmaecidos; o tamanho encolhe conforme o número de dígitos.
+function cartaz(c) {
+  const [int, cent] = (Math.abs(c) / 100).toFixed(2).split('.');
+  const txt = (c < 0 ? '-' : '') + 'R$ ' + (+int).toLocaleString('pt-BR');
+  $('#saldo').style.fontSize = `min(3.2rem, ${Math.floor(165 / (txt.length + 2))}cqw)`;
+  $('#saldo').innerHTML = `${txt}<span class="cent">,${cent}</span>`;
+}
+
+const tipoIco = o => (o.cartaoId ? ['', 'cartao'] : o.valor < 0 ? ['sa', 'saida'] : ['en', 'entrada']);
+const ico = o => `<i class="ico ${tipoIco(o)[0]}">${svg(tipoIco(o)[1])}</i>`;
+function linha(o, comData) {
+  const sub = [comData && dm(o.data), o.cartaoId && `${esc(o.cartaoNome)}, compra em ${dm(o.compra)}`].filter(Boolean).join(' no ');
+  return `<button class="lin" data-id="${esc(o.id)}" data-k="${o.k}">${ico(o)}
+    <span class="txt">${esc(o.nome)}${sub ? `<small>${sub}</small>` : ''}</span>
+    <b class="${o.valor < 0 ? 'neg' : 'pos'}">${brl(o.valor)}</b></button>`;
+}
 
 function extrato(ocs, hoje) {
   const de = verTudo ? '' : hoje.slice(0, 8) + '01';
@@ -64,7 +101,7 @@ function extrato(ocs, hoje) {
   let html = '';
   for (const [d, g] of dias) {
     if (d < de) continue;
-    html += `<div class="${d < hoje ? 'passado' : ''}">
+    html += `<div class="grupo ${d < hoje ? 'passado' : ''} ${g.saldo < 0 ? 'no-vermelho' : ''}">
       <div class="dia ${d === hoje ? 'eh-hoje' : ''}"><span>${dt(d, { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
       <span class="${g.saldo < 0 ? 'neg' : 'pos'}">${brl(g.saldo)}</span></div>${g.l.map(o => linha(o)).join('')}</div>`;
   }
@@ -75,9 +112,9 @@ function render() {
   const hoje = hojeISO(), s = (ult = situacao(st.itens, hoje, 12, st.cartoes));
   const estado = s.saldo < 0 ? 'vermelho' : s.negativoEm || s.sai > s.entra ? 'atencao' : 'verde';
   $('#hero').dataset.estado = estado;
-  $('meta[name=theme-color]').content = { verde: '#14532d', atencao: '#7a4f00', vermelho: '#8f1d18' }[estado];
   $('#hoje').textContent = dt(hoje, { weekday: 'long', day: 'numeric', month: 'long' });
-  $('#saldo').textContent = brl(s.saldo);
+  $('#ola').textContent = st.nome ? `Olá, ${st.nome}` : 'Olá';
+  cartaz(s.saldo);
   $('#fala').textContent = fala(s);
   $('#graf').innerHTML = grafico(s.dias);
 
@@ -102,15 +139,15 @@ function render() {
   const fixos = semFim.filter(i => i.valor < 0).sort((a, b) => a.data.slice(8) - b.data.slice(8));
   const totalF = fixos.reduce((a, i) => a - i.valor, 0);
   const rendaF = semFim.reduce((a, i) => a + Math.max(i.valor, 0), 0);
-  $('#totalFixos').textContent = brl(totalF) + ' por mês';
+  $('#totalFixos').innerHTML = `${brl(totalF)} <small>por mês</small>`;
   $('#pctFixos').textContent = !fixos.length ? 'Nenhum custo fixo cadastrado ainda. Escolha um abaixo para começar.'
     : rendaF ? `Isso é ${Math.round((totalF / rendaF) * 100)}% das suas entradas fixas (${brl(rendaF)} por mês).`
     : 'Lance também o salário como entrada com "Todo mês" para ver quanto os custos fixos pesam.';
   const inicioMes = hoje.slice(0, 8) + '01';
   $('#listaFixos').innerHTML = fixos.map(i => {
     const o = s.ocs.find(o => o.id === i.id && (o.compra ?? o.data) >= inicioMes); // ocorrência deste mês (ou a próxima)
-    return !o ? '' : `<button class="lin" data-id="${esc(i.id)}" data-k="${o.k}" data-escopo="diante">
-      <span>${esc(i.nome)}<small class="tag">todo dia ${+i.data.slice(8)}${o.cartaoNome ? ', no ' + esc(o.cartaoNome) : ''}</small></span>
+    return !o ? '' : `<button class="lin" data-id="${esc(i.id)}" data-k="${o.k}" data-escopo="diante">${ico(o)}
+      <span class="txt">${esc(i.nome)}<small>todo dia ${+i.data.slice(8)}${o.cartaoNome ? ', no ' + esc(o.cartaoNome) : ''}</small></span>
       <b class="neg">${brl(i.valor)}</b></button>`;
   }).join('');
   const tem = new Set(fixos.map(i => i.nome.toLowerCase()));
@@ -121,12 +158,13 @@ function render() {
   $('#blocoFaturas').hidden = $('#comprarCartao').hidden = !st.cartoes.length;
   $('#faturas').innerHTML = st.cartoes.map(c => {
     const prox = s.ocs.filter(o => o.cartaoId === c.id && o.data >= hoje);
-    if (!prox.length) return `<div class="fat"><span>${esc(c.nome)}</span><small>sem compras</small></div>`;
+    const cab = `<div class="fat"><i class="ico">${svg('cartao')}</i><span class="txt">${esc(c.nome)}`;
+    if (!prox.length) return `${cab}<small>sem compras em aberto</small></span></div>`;
     const total = prox.filter(o => o.data === prox[0].data).reduce((a, o) => a + o.valor, 0);
-    return `<div class="fat"><span><small>vence ${dm(prox[0].data)}</small>${esc(c.nome)}</span><b class="neg">${brl(total)}</b></div>`;
+    return `${cab}<small>vence ${dm(prox[0].data)}</small></span><b class="neg">${brl(total)}</b></div>`;
   }).join('');
   $('#listaCartoes').innerHTML = st.cartoes.map(c =>
-    `<button class="fat" data-c="${esc(c.id)}"><span>${esc(c.nome)}</span><small>fecha dia ${c.fecha}, vence dia ${c.vence}</small></button>`).join('');
+    `<button class="fat" data-c="${esc(c.id)}"><i class="ico">${svg('cartao')}</i><span class="txt">${esc(c.nome)}<small>fecha dia ${c.fecha}, vence dia ${c.vence}</small></span></button>`).join('');
   const opts = '<option value="">Conta (débito, Pix, dinheiro)</option>' + st.cartoes.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join('');
   for (const sel of document.querySelectorAll('select[name=cartao]')) { const v = sel.value; sel.innerHTML = opts; sel.value = v; if (sel.selectedIndex < 0) sel.value = ''; }
 }
@@ -208,7 +246,14 @@ document.querySelectorAll('nav [data-v]').forEach(b => (b.onclick = () => {
   document.querySelectorAll('nav [data-v]').forEach(x => x.toggleAttribute('aria-current', x === b));
   scrollTo(0, 0);
 }));
-$('#anteriores').onclick = () => { verTudo = !verTudo; render(); };
+const ATALHOS = {
+  saida: () => abrir(),
+  entrada: () => { abrir(); f.tipo.value = 'e'; },
+  simular: () => { $('#blocoComprar').scrollIntoView({ block: 'center' }); $('#comprar').valor.focus(); },
+  fixos: () => $('nav [data-v=fixos]').click(),
+};
+document.querySelectorAll('[data-ato]').forEach(b => (b.onclick = ATALHOS[b.dataset.ato]));
+$('#anteriores').onclick =() => { verTudo = !verTudo; render(); };
 
 // ---- Cartões ----
 const fc = $('#fc');
